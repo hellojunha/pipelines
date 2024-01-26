@@ -242,6 +242,7 @@ func Container(ctx context.Context, opts Options, mlmd *metadata.Client, cacheCl
 		return nil, err
 	}
 	inputs, err := resolveInputs(ctx, dag, iterationIndex, pipeline, opts.Task, opts.Component.GetInputDefinitions(), mlmd, expr)
+	glog.Infof("inputs: %+v", inputs)
 	if err != nil {
 		return nil, err
 	}
@@ -249,6 +250,7 @@ func Container(ctx context.Context, opts Options, mlmd *metadata.Client, cacheCl
 	executorInput := &pipelinespec.ExecutorInput{
 		Inputs: inputs,
 	}
+	glog.Infof("executorInput: %+v", executorInput)
 	execution = &Execution{ExecutorInput: executorInput}
 	condition := opts.Task.GetTriggerPolicy().GetCondition()
 	if condition != "" {
@@ -261,7 +263,7 @@ func Container(ctx context.Context, opts Options, mlmd *metadata.Client, cacheCl
 	if execution.WillTrigger() {
 		executorInput.Outputs = provisionOutputs(pipeline.GetPipelineRoot(), opts.Task.GetTaskInfo().GetName(), opts.Component.GetOutputDefinitions())
 	}
-
+	glog.Infof("executorInput: %+v", executorInput)
 	ecfg, err := metadata.GenerateExecutionConfig(executorInput)
 	if err != nil {
 		return execution, err
@@ -271,6 +273,7 @@ func Container(ctx context.Context, opts Options, mlmd *metadata.Client, cacheCl
 	ecfg.ParentDagID = dag.Execution.GetID()
 	ecfg.IterationIndex = iterationIndex
 	ecfg.NotTriggered = !execution.WillTrigger()
+	glog.Infof("ecfg: %+v", ecfg)
 
 	// When the container image is a dummy image, there is no launcher for this task.
 	// This happens when this task is created to implement a Kubernetes-specific configuration, i.e.,
@@ -283,6 +286,7 @@ func Container(ctx context.Context, opts Options, mlmd *metadata.Client, cacheCl
 
 	// Generate fingerprint and MLMD ID for cache
 	fingerPrint, cachedMLMDExecutionID, err := getFingerPrintsAndID(execution, &opts, cacheClient)
+	glog.Infof("fingerPrint: %+v, cachedMLMDExecutionID: %+v, err: %+v", fingerPrint, cachedMLMDExecutionID, err)
 	if err != nil {
 		return execution, err
 	}
@@ -305,7 +309,10 @@ func Container(ctx context.Context, opts Options, mlmd *metadata.Client, cacheCl
 	// (2) CachedMLMDExecutionID is non-empty, which means a cache entry exists
 	cached := false
 	execution.Cached = &cached
+	glog.Infof("cached: %+v", cached)
+	glog.Infof("GetCachingOptions: %+v, ecfg.CachedMLMDExecutionID: %+v", opts.Task.GetCachingOptions(), ecfg.CachedMLMDExecutionID)
 	if opts.Task.GetCachingOptions().GetEnableCache() && ecfg.CachedMLMDExecutionID != "" {
+		glog.Infof("Trying to reuse cache")
 		executorOutput, outputArtifacts, err := reuseCachedOutputs(ctx, execution.ExecutorInput, opts.Component.GetOutputDefinitions(), mlmd, ecfg.CachedMLMDExecutionID)
 		if err != nil {
 			return execution, err
